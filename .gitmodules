@@ -1,0 +1,3 @@
+[submodule "ncvm"]
+	path = ncvm
+	url = https://github.com/Apsapeh/ncvm.git
