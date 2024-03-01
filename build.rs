@@ -1,7 +1,3 @@
-//extern crate bindgen;
-
-//use bindgen::CargoCallbacks;
-
 fn main() {
     // Compile library 
     cc::Build::new()

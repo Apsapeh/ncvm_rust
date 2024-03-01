@@ -1,5 +1,5 @@
 [package]
-name = "ncvm_rust"
+name = "ncvm"
 version = "0.0.0"
 edition = "2021"
 authors = ["Timofey Kirichenko"]
