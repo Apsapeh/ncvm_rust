@@ -2,13 +2,19 @@
 name = "ncvm_rust"
 version = "0.0.0"
 edition = "2021"
+authors = ["Timofey Kirichenko"]
+description = "Scripting virtual machine. IN DEV!!!"
+license = "MIT"
+#keywords = []
+#categories = []
+readme = "README.md"
+repository = "https://github.com/Apsapeh/ncvm_rust"
+exclude = [".target/*", "Cargo.lock"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-bindgen = "0.69.4"
-
 [build-dependencies]
+bindgen = "0.69.4"
 cc = "1.0"
 
 [features]

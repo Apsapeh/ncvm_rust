@@ -1,3 +1,6 @@
 [submodule "ncvm"]
-	path = ncvm
+	path = libs/ncvm
 	url = https://github.com/Apsapeh/ncvm.git
+[submodule "extc"]
+	path = libs/extc
+	url = https://github.com/Apsapeh/extc.git

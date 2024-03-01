@@ -1,95 +1,68 @@
 //extern crate bindgen;
 
-use std::env;
-use std::path::PathBuf;
-
 //use bindgen::CargoCallbacks;
 
 fn main() {
-
-
     // Compile library 
     cc::Build::new()
-        .file("ncvm.c")
-        .include("dir")
+        .file("libs/ncvm/src/ncvm.c")
+        .include("libs/ncvm/include")
+        .include("libs/extc/include")
         .opt_level(3)
         .debug(false)
-        .compile("foo");
+        .warnings(false)
+        .compile("c-ncvm-static");
 
 
-
-    /*// This is the directory where the `c` library is located.
-    let libdir_path = PathBuf::from("hello")
-        // Canonicalize the path as `rustc-link-search` requires an absolute
-        // path.
-        .canonicalize()
-        .expect("cannot canonicalize path");
-
-    // This is the path to the `c` headers file.
-    let headers_path = libdir_path.join("hello.h");
-    let headers_path_str = headers_path.to_str().expect("Path is not a valid string");
-
-    // This is the path to the intermediate object file for our library.
-    let obj_path = libdir_path.join("hello.o");
-    // This is the path to the static library file.
-    let lib_path = libdir_path.join("libhello.a");
-
-    // Tell cargo to look for shared libraries in the specified directory
-    println!("cargo:rustc-link-search={}", libdir_path.to_str().unwrap());
-
-    // Tell cargo to tell rustc to link our `hello` library. Cargo will
-    // automatically know it must look for a `libhello.a` file.
-    println!("cargo:rustc-link-lib=hello");
-
-    // Run `clang` to compile the `hello.c` file into a `hello.o` object file.
-    // Unwrap if it is not possible to spawn the process.
-    if !std::process::Command::new("clang")
-        .arg("-c")
-        .arg("-o")
-        .arg(&obj_path)
-        .arg(libdir_path.join("hello.c"))
-        .output()
-        .expect("could not spawn `clang`")
-        .status
-        .success()
-    {
-        // Panic if the command was not successful.
-        panic!("could not compile object file");
-    }
-
-    // Run `ar` to generate the `libhello.a` file from the `hello.o` file.
-    // Unwrap if it is not possible to spawn the process.
-    if !std::process::Command::new("ar")
-        .arg("rcs")
-        .arg(lib_path)
-        .arg(obj_path)
-        .output()
-        .expect("could not spawn `ar`")
-        .status
-        .success()
-    {
-        // Panic if the command was not successful.
-        panic!("could not emit library file");
-    }
-
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
     let bindings = bindgen::Builder::default()
-        // The input header we would like to generate
-        // bindings for.
-        .header(headers_path_str)
-        // Tell cargo to invalidate the built crate whenever any of the
-        // included header files changed.
-        .parse_callbacks(Box::new(CargoCallbacks::new()))
-        // Finish the builder and generate the bindings.
+        .header("libs/ncvm/include/ncvm.h")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
-        // Unwrap the Result and panic on failure.
         .expect("Unable to generate bindings");
 
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");
-    bindings
-        .write_to_file(out_path)
-        .expect("Couldn't write bindings!");*/
+    let mut result = move_const_to_mod(
+        &bindings.to_string(), "opcode", "OPCODE_"
+    );
+    result = move_const_to_mod(
+        &result, "register", "REGISTER_"
+    );
+    result.insert_str(0, "#![allow(warnings)]\n");
+
+    std::fs::write("src/ncvm.rs", result).unwrap();
+}
+
+fn move_const_to_mod(source: &String, mod_name: &str, const_keyword: &str) -> String {
+    let mut result: String = String::with_capacity(source.len());
+    let mut str_mod: String = String::from(format!("pub mod {mod_name} {{\n"));
+    let mut post_mod = String::new();
+    for line in source.split("\n") {
+        let lw = line.split_whitespace().collect::<Vec<&str>>();
+        
+        if lw.len() == 6 && lw[0] == "pub" &&
+           lw[1] == "const" && lw[2].starts_with(const_keyword) {
+            str_mod.push_str(
+                format!("\t{}\n", line.replace(const_keyword, "")).as_str()
+            );
+        }
+        else if lw.len() >= 3 && lw[0] == "pub" &&
+        lw[1] == "type" && format!("{}_", lw[2]) == const_keyword {
+            str_mod.push_str(
+                format!("\t{}\n", line.replace(const_keyword, "")).as_str()
+            );
+            post_mod = String::from(
+                format!(
+                    "use {}::{};\n", mod_name,
+                    const_keyword.chars().take(const_keyword.len()-1).collect::<String>()
+                )
+            )
+        }
+        else {
+            result.push_str(line);
+            result.push('\n');
+        }
+    }
+    str_mod.push_str("}\n");
+    str_mod.push_str(&post_mod);
+    result.insert_str(0, &str_mod);
+    result
 }
