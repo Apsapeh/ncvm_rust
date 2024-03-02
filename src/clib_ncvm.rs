@@ -43,15 +43,15 @@ pub mod opcode {
 	pub const FMOV: OPCODE = 25;
 	pub const DMOV: OPCODE = 26;
 	pub const ISR: OPCODE = 27;
-	pub const ISMLD: OPCODE = 28;
-	pub const ISMST: OPCODE = 29;
-	pub const LSR: OPCODE = 30;
-	pub const LSMLD: OPCODE = 31;
-	pub const LSMST: OPCODE = 32;
-	pub const FSR: OPCODE = 33;
-	pub const FSMLD: OPCODE = 34;
-	pub const FSMST: OPCODE = 35;
-	pub const DSR: OPCODE = 36;
+	pub const LSR: OPCODE = 28;
+	pub const FSR: OPCODE = 29;
+	pub const DSR: OPCODE = 30;
+	pub const ISMLD: OPCODE = 31;
+	pub const ISMST: OPCODE = 32;
+	pub const LSMLD: OPCODE = 33;
+	pub const LSMST: OPCODE = 34;
+	pub const FSMLD: OPCODE = 35;
+	pub const FSMST: OPCODE = 36;
 	pub const DSMLD: OPCODE = 37;
 	pub const DSMST: OPCODE = 38;
 	pub const IADD: OPCODE = 39;
@@ -297,6 +297,80 @@ fn bindgen_test_layout_ncvm() {
         )
     );
 }
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ThreadSettings {
+    pub u32_reg_size: ::std::os::raw::c_ulong,
+    pub u64_reg_size: ::std::os::raw::c_ulong,
+    pub f32_reg_size: ::std::os::raw::c_ulong,
+    pub f64_reg_size: ::std::os::raw::c_ulong,
+    pub stack_size: ::std::os::raw::c_ulong,
+}
+#[test]
+fn bindgen_test_layout_ThreadSettings() {
+    const UNINIT: ::std::mem::MaybeUninit<ThreadSettings> = ::std::mem::MaybeUninit::uninit();
+    let ptr = UNINIT.as_ptr();
+    assert_eq!(
+        ::std::mem::size_of::<ThreadSettings>(),
+        40usize,
+        concat!("Size of: ", stringify!(ThreadSettings))
+    );
+    assert_eq!(
+        ::std::mem::align_of::<ThreadSettings>(),
+        8usize,
+        concat!("Alignment of ", stringify!(ThreadSettings))
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).u32_reg_size) as usize - ptr as usize },
+        0usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(ThreadSettings),
+            "::",
+            stringify!(u32_reg_size)
+        )
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).u64_reg_size) as usize - ptr as usize },
+        8usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(ThreadSettings),
+            "::",
+            stringify!(u64_reg_size)
+        )
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).f32_reg_size) as usize - ptr as usize },
+        16usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(ThreadSettings),
+            "::",
+            stringify!(f32_reg_size)
+        )
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).f64_reg_size) as usize - ptr as usize },
+        24usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(ThreadSettings),
+            "::",
+            stringify!(f64_reg_size)
+        )
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).stack_size) as usize - ptr as usize },
+        32usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(ThreadSettings),
+            "::",
+            stringify!(stack_size)
+        )
+    );
+}
 extern "C" {
     pub fn ncvm_initArr(
         inst_p: *mut Instruction,
@@ -316,7 +390,7 @@ extern "C" {
 }
 extern "C" {
     #[doc = "@param vm VM"]
-    pub fn ncvm_execute(vm: *mut ncvm) -> ::std::os::raw::c_uchar;
+    pub fn ncvm_execute(vm: *mut ncvm, settings: ThreadSettings) -> ::std::os::raw::c_uchar;
 }
 extern "C" {
     pub fn ncvm_create_thread(
@@ -324,6 +398,7 @@ extern "C" {
         start_instr_p: *mut Instruction,
         ext_stack_p: *mut ::std::os::raw::c_uchar,
         ext_stack_s: ::std::os::raw::c_ulong,
+        settings: ThreadSettings,
     ) -> ::std::os::raw::c_uchar;
 }
 

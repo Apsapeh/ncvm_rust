@@ -17,4 +17,17 @@ exclude = [".target/*", "Cargo.lock"]
 bindgen = "0.69.4"
 cc = "1.0"
 
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'unwind'
+incremental = false
+overflow-checks = false
+strip = true
+
+
 [features]

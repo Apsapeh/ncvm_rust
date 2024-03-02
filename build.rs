@@ -24,7 +24,7 @@ fn main() {
     );
     result.insert_str(0, "#![allow(warnings)]\n");
 
-    std::fs::write("src/ncvm.rs", result).unwrap();
+    std::fs::write("src/clib_ncvm.rs", result).unwrap();
 }
 
 fn move_const_to_mod(source: &String, mod_name: &str, const_keyword: &str) -> String {
