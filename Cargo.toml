@@ -1,6 +1,6 @@
 [package]
 name = "ncvm"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2021"
 authors = ["Timofey Kirichenko"]
 description = "Scripting virtual machine. IN DEV!!!"
@@ -9,7 +9,7 @@ license = "MIT"
 #categories = []
 readme = "README.md"
 repository = "https://github.com/Apsapeh/ncvm_rust"
-exclude = [".target/*", "Cargo.lock"]
+exclude = [".target/*", "Cargo.lock", "examples/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
