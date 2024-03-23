@@ -6,45 +6,48 @@ mod clib_ncvm;
 
 
 pub use clib_ncvm::{
-    opcode, 
-    register,
+    Opcode, 
+    Register,
     Instruction,
     Instruction_LongOrDouble,
     ThreadSettings
 };
 
+pub use clib_ncvm::OPCODE as opcode_type;
+pub use clib_ncvm::Register as register_type;
+
 impl clib_ncvm::Instruction {
     pub fn new(
-        opcode: opcode::OPCODE,
+        opcode: Opcode,
         r1: ::std::os::raw::c_uchar,
         r2: ::std::os::raw::c_uchar,
         r3: Instruction_LongOrDouble
     ) -> Instruction {
         Instruction {
-            opcode, r1, r2, r3
+            opcode: opcode as opcode_type, r1, r2, r3
         }
     }
 
     pub fn new_f(
-        opcode: opcode::OPCODE,
+        opcode: Opcode,
         r1: ::std::os::raw::c_uchar,
         r2: ::std::os::raw::c_uchar,
         r3: f64
     ) -> Instruction {
         Instruction {
-            opcode, r1, r2, 
+            opcode: opcode as opcode_type, r1, r2, 
             r3: Instruction_LongOrDouble {valf: r3}
         }
     }
 
     pub fn new_i(
-        opcode: opcode::OPCODE,
+        opcode: Opcode,
         r1: ::std::os::raw::c_uchar,
         r2: ::std::os::raw::c_uchar,
         r3: ::std::os::raw::c_ulonglong
     ) -> Instruction {
         Instruction {
-            opcode, r1, r2, 
+            opcode: opcode as opcode_type, r1, r2, 
             r3: Instruction_LongOrDouble {vali: r3}
         }
     }
