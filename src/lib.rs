@@ -1,162 +1,27 @@
-/*#![allow(dead_code)]
+use std::{collections::HashMap, ptr::null_mut};
 
-// At this moment, it's a full implementation
-
-mod clib_ncvm;
-
-
-pub use clib_ncvm::{
-    Opcode,
-    Register,
-    Instruction,
-    Instruction_LongOrDouble,
-    ThreadSettings
-};
-
-pub use clib_ncvm::OPCODE as opcode_type;
-pub use clib_ncvm::Register as register_type;
-
-impl clib_ncvm::Instruction {
-    pub fn new(
-        opcode: Opcode,
-        r1: ::std::os::raw::c_uchar,
-        r2: ::std::os::raw::c_uchar,
-        r3: Instruction_LongOrDouble
-    ) -> Instruction {
-        Instruction {
-            opcode: opcode as opcode_type, r1, r2, r3
-        }
-    }
-
-    pub fn new_f(
-        opcode: Opcode,
-        r1: ::std::os::raw::c_uchar,
-        r2: ::std::os::raw::c_uchar,
-        r3: f64
-    ) -> Instruction {
-        Instruction {
-            opcode: opcode as opcode_type, r1, r2,
-            r3: Instruction_LongOrDouble {valf: r3}
-        }
-    }
-
-    pub fn new_i(
-        opcode: Opcode,
-        r1: ::std::os::raw::c_uchar,
-        r2: ::std::os::raw::c_uchar,
-        r3: ::std::os::raw::c_ulonglong
-    ) -> Instruction {
-        Instruction {
-            opcode: opcode as opcode_type, r1, r2,
-            r3: Instruction_LongOrDouble {vali: r3}
-        }
-    }
-}
-
-impl ThreadSettings {
-    pub fn new(
-        u32_reg_size: usize,
-        u64_reg_size: usize,
-        f32_reg_size: usize,
-        f64_reg_size: usize,
-        stack_size: usize
-    ) -> ThreadSettings {
-        ThreadSettings {
-            u32_reg_size: u32_reg_size as ::std::os::raw::c_ulong,
-            u64_reg_size: u64_reg_size as ::std::os::raw::c_ulong,
-            f32_reg_size: f32_reg_size as ::std::os::raw::c_ulong,
-            f64_reg_size: f64_reg_size as ::std::os::raw::c_ulong,
-            stack_size:     stack_size as ::std::os::raw::c_ulong
-        }
-    }
-
-    pub fn default() -> ThreadSettings {
-        ThreadSettings {
-            u32_reg_size: 8,
-            u64_reg_size: 8,
-            f32_reg_size: 8,
-            f64_reg_size: 8,
-            stack_size:   1024*1024*1, // 1 MiB
-        }
-    }
-}
-
-pub struct VM {
-    c_vm: clib_ncvm::ncvm
-}
-
-impl VM {
-    pub fn new(
-        instructions: &mut Vec<Instruction>,
-        static_memory: &mut Vec<::std::os::raw::c_uchar>
-    ) -> VM {
-        unsafe { VM {
-            c_vm: clib_ncvm::ncvm_initArr(
-                instructions.as_mut_ptr(),
-                instructions.len() as ::std::os::raw::c_ulong,
-                static_memory.as_mut_ptr(),
-                static_memory.len() as ::std::os::raw::c_ulong,
-            )
-        }}
-    }
-
-    pub fn from_bin(mut bin_data: Vec<::std::os::raw::c_char>) -> VM {
-        unsafe { VM {
-            c_vm: clib_ncvm::ncvm_initData(
-                bin_data.as_mut_ptr(),
-                bin_data.len() as ::std::os::raw::c_ulong,
-            )
-        }}
-    }
-
-    pub fn execute(&mut self, settings: ThreadSettings) {
-        unsafe {
-            clib_ncvm::ncvm_execute(&mut self.c_vm, settings);
-        }
-    }
-
-    pub fn create_thread(
-        &mut self, start_instruction_index: usize,
-        ext_stack: &mut Vec<::std::os::raw::c_uchar>,
-        settings: ThreadSettings
-    ) {
-        unsafe {
-            clib_ncvm::ncvm_create_thread(
-                &mut self.c_vm,
-                self.c_vm.inst_p.add(start_instruction_index),
-                ext_stack.as_mut_ptr(),
-                ext_stack.len() as ::std::os::raw::c_ulong,
-                settings
-            );
-        }
-    }
-}*/
-
-use std::{
-    collections::HashMap,
-    ptr::{null, null_mut},
-};
-
-use clib_ncvm::Instruction;
+pub use ncvm_derive::native_function;
 
 pub mod clib_ncvm;
 
-pub use ncvm_derive::native_function;
+pub type NativeFunction = unsafe extern "C" fn(*mut clib_ncvm::ncvm_thread);
+
+#[repr(u8)]
+#[derive(Debug)]
+pub enum Error {
+    U32Not32Bit = clib_ncvm::NCVM_U32_NOT_32_BIT as u8,
+    U64Not64Bit = clib_ncvm::NCVM_U64_NOT_64_BIT as u8,
+    IsBigEndian = clib_ncvm::NCVM_IS_BIG_ENDIAN as u8,
+    StackAllocError = clib_ncvm::NCVM_STACK_ALLOC_ERROR as u8,
+    IncompatibleVersion = clib_ncvm::NCVM_INCOMPATIBLE_VERSION as u8,
+    NativeFunctionNotFound = clib_ncvm::NCVM_LIB_FUNCTION_NOT_FOUND as u8,
+    BytecodeReadError = clib_ncvm::NCVM_BYTECODE_READ_ERROR as u8,
+}
 
 enum PtrOrValue<T> {
     Ptr(*mut T),
     Value(T),
 }
-
-pub struct VM {
-    pub c_vm: clib_ncvm::ncvm,
-}
-
-pub struct Thread {
-    c_thread: PtrOrValue<clib_ncvm::ncvm_thread>,
-}
-
-pub type NativeFunction = unsafe extern "C" fn(*mut clib_ncvm::ncvm_thread);
 
 pub enum NativeFunctions {
     Files(Vec<String>),
@@ -164,37 +29,101 @@ pub enum NativeFunctions {
     //CustomGetter(fn(name: &str, data: &dyn std::any::Any) -> NativeFunction),
 }
 
+pub struct VM {
+    pub c_vm: clib_ncvm::ncvm,
+    default_lib_loader: Option<clib_ncvm::ncvm_default_lib_loader>,
+}
+
+pub struct Thread {
+    c_thread: PtrOrValue<clib_ncvm::ncvm_thread>,
+}
+
 struct DataPtrWrap {
     ptr: *const u8,
 }
 
-impl VM {
-    /*pub fn new(instructions: &mut Vec<Instruction>, static_memory: &mut Vec<u8>, native_lib_getter: fn(name: &str)) -> VM {
-        let mut vm = std::mem::MaybeUninit::uninit();
-        unsafe {
-            /*let settings = clib_ncvm::ThreadSettings {
-                u32_reg_size: 8,
-                u64_reg_size: 8,
-                f32_reg_size: 8,
-                f64_reg_size: 8,
-                stack_size: 1024 * 1024 * 1, // 1 MiB
-                call_stack_size: 1024 * 1024 * 1,
-            };
-            vm = clib_ncvm::ncvm {
-                inst_p: null_mut(),
-                static_mem_p: null_mut(),
-                inst_count: 0,
-                static_mem_size: 0,
-                main_thread_settings: settings,
-                lib_functions: null_mut(),
-            };*/
-            clib_ncvm::ncvm_init(vm.as_mut_ptr(), instructions.as_mut_ptr(), static_memory.as_mut_ptr(), None, null_mut());
-        }
-        let vm = unsafe { vm.assume_init() };
+type LibGetterFunction = unsafe extern "C" fn(
+    *const ::std::os::raw::c_char,
+    *mut ::std::os::raw::c_void,
+) -> clib_ncvm::ncvm_lib_function;
 
-        return VM {c_vm: vm};
-    }*/
-    pub fn from_file(path: &str) -> () {}
+impl VM {
+    pub fn from_file(path: &str, native_fns: Option<NativeFunctions>) -> Result<VM, Error> {
+        let bytecode = std::fs::read(path).unwrap();
+        VM::from_data(bytecode, native_fns)
+    }
+
+    pub fn from_data(bytecode: Vec<u8>, native_fns: Option<NativeFunctions>) -> Result<VM, Error> {
+        unsafe {
+            //a(null_mut());
+            let mut data_ptr = DataPtrWrap {
+                ptr: bytecode.as_ptr(),
+            };
+
+            let mut vm = std::mem::MaybeUninit::uninit();
+            let gn = Some(
+                VM::get_next_n_bytes
+                    as unsafe extern "C" fn(
+                        ::std::os::raw::c_ulong,
+                        *mut ::std::os::raw::c_void,
+                    ) -> *const u8,
+            );
+
+            let mut is_default_lib_loader = false;
+            let (lib_getter, lib_getter_data) = match native_fns {
+                Some(NativeFunctions::Files(files)) => {
+                    let mut cstr_libs = files
+                        .into_iter()
+                        .map(|s| std::ffi::CString::new(s).unwrap().into_raw() as *const i8)
+                        .collect::<Vec<_>>();
+                    let lib_loader = clib_ncvm::ncvm_default_lib_loader_init(
+                        cstr_libs.as_mut_ptr(),
+                        cstr_libs.len() as ::std::os::raw::c_ulong,
+                    );
+
+                    is_default_lib_loader = true;
+                    (
+                        Some(clib_ncvm::ncvm_default_get_lib_function as LibGetterFunction),
+                        Box::into_raw(Box::new(lib_loader)) as *mut ::std::os::raw::c_void,
+                    )
+                }
+                Some(NativeFunctions::Functions(functions)) => {
+                    //println!("functions: {:?}", functions);
+                    (
+                        Some(VM::rust_lib_getter as LibGetterFunction),
+                        Box::into_raw(Box::new(functions)) as *mut ::std::os::raw::c_void,
+                    )
+                }
+                None => (Some(VM::empty_lib_getter as LibGetterFunction), null_mut()),
+            };
+
+            //println!("data: {:?}", lib_getter_data as *mut HashMap<String, NativeFunction> as &mut HashMap<String, NativeFunction>);
+
+            let r = clib_ncvm::ncvm_loadBytecodeStream(
+                vm.as_mut_ptr(),
+                gn,
+                &mut data_ptr as *mut DataPtrWrap as *mut ::std::os::raw::c_void,
+                lib_getter,
+                //&mut lib_loader as *mut clib_ncvm::ncvm_default_lib_loader as *mut ::std::os::raw::c_void,
+                lib_getter_data,
+            );
+
+            let mut default_lib_loader_result = None;
+            if is_default_lib_loader {
+                default_lib_loader_result =
+                    Some(*(lib_getter_data as *mut clib_ncvm::ncvm_default_lib_loader));
+            }
+
+            if r != clib_ncvm::NCVM_OK as u8 {
+                return Err(Error::from_code(r).unwrap());
+            }
+
+            Ok(VM {
+                c_vm: vm.assume_init(),
+                default_lib_loader: default_lib_loader_result,
+            })
+        }
+    }
 
     unsafe extern "C" fn get_next_n_bytes(
         n: ::std::os::raw::c_ulong,
@@ -204,13 +133,12 @@ impl VM {
 
         let return_ptr = data.ptr;
         data.ptr = data.ptr.add(n as usize);
-        //data_p = data_p.add(n as usize);
         return_ptr
     }
 
     unsafe extern "C" fn empty_lib_getter(
-        name: *const ::std::os::raw::c_char,
-        data_p: *mut ::std::os::raw::c_void,
+        _: *const ::std::os::raw::c_char,
+        _: *mut ::std::os::raw::c_void,
     ) -> clib_ncvm::ncvm_lib_function {
         None
     }
@@ -219,130 +147,17 @@ impl VM {
         name: *const ::std::os::raw::c_char,
         data_p: *mut ::std::os::raw::c_void,
     ) -> clib_ncvm::ncvm_lib_function {
-        let data = data_p as *mut HashMap<String, NativeFunction>;
+        let data = &*(data_p as *const HashMap<String, NativeFunction>);
         let name = std::ffi::CStr::from_ptr(name).to_str().unwrap();
-
-        println!("rust_lib_getter: {}", name);
-        println!("data_p: {:?}", *data);
 
         match (*data).get(name) {
             Some(f) => Some(*f),
             None => None,
         }
     }
-
-    /*unsafe extern "C" fn get_rust_native_function(
-        name: *const ::std::os::raw::c_char,
-        data_p: *mut ::std::os::raw::c_void,
-    ) -> clib_ncvm::ncvm_lib_function {
-        let native_fns = &*(data_p as *const HashMap<String, NativeFunction>);
-        let name = std::ffi::CStr::from_ptr(name).to_str().unwrap();
-
-    }*/
-
-    pub fn from_data(
-        mut bytecode: Vec<u8>,
-        native_fns: Option<NativeFunctions>,
-    ) -> Result<VM, String> {
-        unsafe {
-            //a(null_mut());
-            let mut data_ptr = DataPtrWrap {
-                ptr: bytecode.as_ptr(),
-            };
-
-            let mut vm = std::mem::MaybeUninit::uninit();
-            let ptr_vm = vm.as_mut_ptr();
-            let gn = Some(
-                VM::get_next_n_bytes
-                    as unsafe extern "C" fn(
-                        ::std::os::raw::c_ulong,
-                        *mut ::std::os::raw::c_void,
-                    ) -> *const u8,
-            );
-            let gl = Some(
-                clib_ncvm::ncvm_default_get_lib_function
-                    as unsafe extern "C" fn(
-                        *const ::std::os::raw::c_char,
-                        *mut ::std::os::raw::c_void,
-                    ) -> clib_ncvm::ncvm_lib_function,
-            );
-
-            let libs = vec!["/home/ghost/Desktop/Rust/Projects/ncvm_rust/liblib1.so\0"];
-
-            let l = libs.as_ptr() as *mut *const ::std::os::raw::c_char;
-            let mut lib_loader =
-                clib_ncvm::ncvm_default_lib_loader_init(l, libs.len() as ::std::os::raw::c_ulong);
-
-            let (lib_getter, 
-                lib_getter_data) = match native_fns {
-                Some(NativeFunctions::Files(files)) => {
-                    let mut cstr_libs = files
-                        .into_iter()
-                        .map(|s| std::ffi::CString::new(s).unwrap().into_raw() as *const i8)
-                        .collect::<Vec<_>>();
-                    let mut lib_loader = clib_ncvm::ncvm_default_lib_loader_init(
-                        cstr_libs.as_mut_ptr(),
-                        cstr_libs.len() as ::std::os::raw::c_ulong,
-                    );
-                    (
-                        Some(
-                            clib_ncvm::ncvm_default_get_lib_function
-                                as unsafe extern "C" fn(
-                                    *const ::std::os::raw::c_char,
-                                    *mut ::std::os::raw::c_void,
-                                )
-                                    -> clib_ncvm::ncvm_lib_function,
-                        ),
-                        &mut lib_loader as *mut clib_ncvm::ncvm_default_lib_loader
-                            as *mut ::std::os::raw::c_void,
-                    )
-                }
-                Some(NativeFunctions::Functions(mut functions)) => {
-                    println!("functions: {:?}", functions);
-                    (Some(
-                        VM::rust_lib_getter
-                            as unsafe extern "C" fn(
-                                *const ::std::os::raw::c_char,
-                                *mut ::std::os::raw::c_void,
-                            )
-                                -> clib_ncvm::ncvm_lib_function,
-                    ),
-                    &mut functions as *mut HashMap<String, NativeFunction> as *mut ::std::os::raw::c_void)
-                },
-                None => (
-                    Some(
-                        VM::empty_lib_getter
-                            as unsafe extern "C" fn(
-                                *const ::std::os::raw::c_char,
-                                *mut ::std::os::raw::c_void,
-                            )
-                                -> clib_ncvm::ncvm_lib_function,
-                    ),
-                    null_mut(),
-                ),
-            };
-
-            println!("data: {:?}", lib_getter_data as *mut HashMap<String, NativeFunction> as &mut HashMap<String, NativeFunction>);
-
-            let r = clib_ncvm::ncvm_loadBytecodeStream(
-                ptr_vm,
-                gn,
-                &mut data_ptr as *mut DataPtrWrap as *mut ::std::os::raw::c_void,
-                lib_getter,
-                //&mut lib_loader as *mut clib_ncvm::ncvm_default_lib_loader as *mut ::std::os::raw::c_void,
-                lib_getter_data,
-            );
-
-            println!("R: {} {}", r, clib_ncvm::NCVM_LIB_FUNCTION_NOT_FOUND);
-
-            Ok(VM {
-                c_vm: vm.assume_init(),
-            })
-        }
-    }
 }
 
-// Threade functions
+// Thread functions
 impl VM {
     pub fn create_thread(
         &mut self,
@@ -388,7 +203,7 @@ impl Thread {
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(self) {
         unsafe {
             match self.c_thread {
                 PtrOrValue::Ptr(ptr) => clib_ncvm::ncvm_execute_thread(ptr),
@@ -402,8 +217,53 @@ impl Thread {
 
     pub fn get_u32_reg(&self, index: usize) -> u32 {
         unsafe {
-            //clib_ncvm::ncvm_get_u32_reg(self.c_thread.as_mut_ptr(), index)
-            0
+            match self.c_thread {
+                PtrOrValue::Ptr(ptr) => (*ptr).u32_registers.add(index).read(),
+                PtrOrValue::Value(th) => th.u32_registers.add(index).read(),
+            }
+        }
+    }
+
+    pub fn get_u64_reg(&self, index: usize) -> u64 {
+        unsafe {
+            match self.c_thread {
+                PtrOrValue::Ptr(ptr) => (*ptr).u64_registers.add(index).read(),
+                PtrOrValue::Value(th) => th.u64_registers.add(index).read(),
+            }
+        }
+    }
+
+    pub fn get_f32_reg(&self, index: usize) -> f32 {
+        unsafe {
+            match self.c_thread {
+                PtrOrValue::Ptr(ptr) => (*ptr).f32_registers.add(index).read(),
+                PtrOrValue::Value(th) => th.f32_registers.add(index).read(),
+            }
+        }
+    }
+
+    pub fn get_f64_reg(&self, index: usize) -> f64 {
+        unsafe {
+            //clib_ncvm::ncvm_get_f64_reg(self.c_thread.as_mut_ptr(), index)
+            match self.c_thread {
+                PtrOrValue::Ptr(ptr) => (*ptr).f64_registers.add(index).read(),
+                PtrOrValue::Value(th) => th.f64_registers.add(index).read(),
+            }
+        }
+    }
+}
+
+impl Error {
+    pub fn from_code(code: u8) -> Option<Error> {
+        match code as u32 {
+            clib_ncvm::NCVM_U32_NOT_32_BIT => Some(Error::U32Not32Bit),
+            clib_ncvm::NCVM_U64_NOT_64_BIT => Some(Error::U64Not64Bit),
+            clib_ncvm::NCVM_IS_BIG_ENDIAN => Some(Error::IsBigEndian),
+            clib_ncvm::NCVM_STACK_ALLOC_ERROR => Some(Error::StackAllocError),
+            clib_ncvm::NCVM_INCOMPATIBLE_VERSION => Some(Error::IncompatibleVersion),
+            clib_ncvm::NCVM_LIB_FUNCTION_NOT_FOUND => Some(Error::NativeFunctionNotFound),
+            clib_ncvm::NCVM_BYTECODE_READ_ERROR => Some(Error::BytecodeReadError),
+            _ => None,
         }
     }
 }
@@ -411,6 +271,11 @@ impl Thread {
 impl Drop for VM {
     fn drop(&mut self) {
         unsafe {
+            if let Some(mut lib_loader) = self.default_lib_loader {
+                clib_ncvm::ncvm_default_lib_function_loader_free(
+                    &mut lib_loader as *mut clib_ncvm::ncvm_default_lib_loader,
+                );
+            }
             clib_ncvm::ncvm_free(&mut self.c_vm as *mut clib_ncvm::ncvm);
         }
     }
@@ -419,12 +284,9 @@ impl Drop for VM {
 impl Drop for Thread {
     fn drop(&mut self) {
         unsafe {
-            match self.c_thread {
-                PtrOrValue::Ptr(ptr) => {}
-                PtrOrValue::Value(mut th) => {
-                    clib_ncvm::ncvm_thread_free(&mut th as *mut clib_ncvm::ncvm_thread)
-                }
-            };
+            if let PtrOrValue::Value(mut th) = self.c_thread {
+                clib_ncvm::ncvm_thread_free(&mut th as *mut clib_ncvm::ncvm_thread)
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ fn main() {
         .files(vec!["libs/ncvm/src/ncvm.c", "libs/ncvm/src/util.c", "libs/ncvm/src/bytecode_loader.c", "libs/ncvm/src/default_loaders.c"])
         .include("libs/ncvm/include")
         .include("libs/extc/include")
+        .define("__NCVM_USE_JUMPTABLE", None)
         .opt_level(3)
         .debug(false)
         .warnings(false)
