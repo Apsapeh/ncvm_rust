@@ -1,4 +1,4 @@
-use ncvm::{self, Instruction, ThreadSettings};
+/*use ncvm::{self, Instruction, ThreadSettings};
 use ncvm::Opcode as Op;
 
 fn main() {
@@ -31,4 +31,9 @@ fn main() {
     
 
     println!("{:?}", s_mem);
+}*/
+
+
+fn main() {
+     
 }

@@ -1,7 +1,7 @@
 fn main() {
     // Compile library 
     cc::Build::new()
-        .file("libs/ncvm/src/ncvm.c")
+        .files(vec!["libs/ncvm/src/ncvm.c", "libs/ncvm/src/util.c", "libs/ncvm/src/bytecode_loader.c", "libs/ncvm/src/default_loaders.c"])
         .include("libs/ncvm/include")
         .include("libs/extc/include")
         .opt_level(3)
