@@ -5,6 +5,9 @@
     4.0
 )
 
+pub stop:
+    STOP
+
 main:
     ISR R0 100000002   ; Количество итераций
     ISR R1 2           ; int i = 2; 

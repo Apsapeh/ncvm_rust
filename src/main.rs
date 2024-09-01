@@ -28,11 +28,16 @@ fn main() {
 
     //println!("{}", vm.c_vm.inst_count);
 
-    let thread = vm.create_thread(0, None, None);
+    //let addr = vm.find_function_addr("stop").unwrap();
+
+    //vm.get_function("main");
+    let thread = vm.create_function_thread("stop").unwrap();
+
+    //let thread = vm.create_thread(addr as usize, None, None).unwrap();
     thread.run();
     //println!("R: {}", thread.get_f64_reg(1));
     //thread.run();
-    let thread = vm.create_thread(0, None, None);
+    //let thread = vm.create_thread(0, None, None);
     //thread.run();
 
     //ncvm_execute_thread(&mut thread.c_thread);

@@ -16,6 +16,10 @@ pub enum Error {
     IncompatibleVersion = clib_ncvm::NCVM_INCOMPATIBLE_VERSION as u8,
     NativeFunctionNotFound = clib_ncvm::NCVM_LIB_FUNCTION_NOT_FOUND as u8,
     BytecodeReadError = clib_ncvm::NCVM_BYTECODE_READ_ERROR as u8,
+    FunctionNotFound = clib_ncvm::NCVM_FUNCTION_NOT_FOUND as u8,
+    StackOverflow = clib_ncvm::NCVM_STACK_OVERFLOW as u8,
+    StackUnderflow = clib_ncvm::NCVM_STACK_UNDERFLOW as u8,
+    CallStackOverflow = clib_ncvm::NCVM_CALL_STACK_OVERFLOW as u8,
 }
 
 enum PtrOrValue<T> {
@@ -125,6 +129,23 @@ impl VM {
         }
     }
 
+    pub fn find_function_addr(&mut self, name: &str) -> Option<u64> {
+        unsafe {
+            let mut addr = std::mem::MaybeUninit::uninit();
+            let name = std::ffi::CString::new(name).unwrap();
+            let r = clib_ncvm::ncvm_find_function_addr(
+                &mut self.c_vm,
+                name.as_ptr(),
+                addr.as_mut_ptr(),
+            );
+
+            if r == clib_ncvm::NCVM_OK as u8 {
+                return Some(addr.assume_init());
+            }
+            None
+        }
+    }
+
     unsafe extern "C" fn get_next_n_bytes(
         n: ::std::os::raw::c_ulong,
         data_p: *mut ::std::os::raw::c_void,
@@ -164,17 +185,18 @@ impl VM {
         start_instruction_index: usize,
         ext_stack: Option<&mut Vec<u8>>,
         settings: Option<clib_ncvm::ThreadSettings>,
-    ) -> Thread {
+    ) -> Result<Thread, Error> {
         let mut thread = std::mem::MaybeUninit::uninit();
-        unsafe {
-            let (ext_stack_ptr, ext_stack_len) = match ext_stack {
-                Some(stack) => (stack.as_mut_ptr(), stack.len() as ::std::os::raw::c_ulong),
-                None => (null_mut(), 0),
-            };
-            let settings = match settings {
-                Some(settings) => settings,
-                None => self.c_vm.main_thread_settings,
-            };
+        //unsafe {
+        let (ext_stack_ptr, ext_stack_len) = match ext_stack {
+            Some(stack) => (stack.as_mut_ptr(), stack.len() as ::std::os::raw::c_ulong),
+            None => (null_mut(), 0),
+        };
+        let settings = match settings {
+            Some(settings) => settings,
+            None => self.c_vm.main_thread_settings,
+        };
+        let r = unsafe {
             clib_ncvm::ncvm_create_thread(
                 thread.as_mut_ptr(),
                 &mut self.c_vm,
@@ -182,11 +204,25 @@ impl VM {
                 ext_stack_ptr,
                 ext_stack_len,
                 settings,
-            );
+            )
+        };
+
+        if r != clib_ncvm::NCVM_OK as u8 {
+            return Err(Error::from_code(r).unwrap());
         }
+
         let thread = unsafe { thread.assume_init() };
 
-        return Thread::from_value(thread);
+        return Ok(Thread::from_value(thread));
+    }
+
+    pub fn create_function_thread(&mut self, name: &str) -> Result<Thread, Error> {
+        let addr = match self.find_function_addr(name) {
+            Some(addr) => addr,
+            None => return Err(Error::FunctionNotFound),
+        };
+
+        self.create_thread(addr as usize, None, None)
     }
 }
 
@@ -263,6 +299,10 @@ impl Error {
             clib_ncvm::NCVM_INCOMPATIBLE_VERSION => Some(Error::IncompatibleVersion),
             clib_ncvm::NCVM_LIB_FUNCTION_NOT_FOUND => Some(Error::NativeFunctionNotFound),
             clib_ncvm::NCVM_BYTECODE_READ_ERROR => Some(Error::BytecodeReadError),
+            clib_ncvm::NCVM_FUNCTION_NOT_FOUND => Some(Error::FunctionNotFound),
+            clib_ncvm::NCVM_STACK_OVERFLOW => Some(Error::StackOverflow),
+            clib_ncvm::NCVM_STACK_UNDERFLOW => Some(Error::StackUnderflow),
+            clib_ncvm::NCVM_CALL_STACK_OVERFLOW => Some(Error::CallStackOverflow),
             _ => None,
         }
     }
